@@ -1,0 +1,7 @@
+{
+  "name": "TermVoice Web",
+  "description": "A terminal-themed, web-based voice assistant powered by the Gemini API. Engage in real-time, hands-free conversation with an advanced AI, with live transcription and audio responses.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
