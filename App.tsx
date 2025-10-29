@@ -22,6 +22,7 @@ const App: React.FC = () => {
     const [micGain, setMicGain] = useState(1);
     const [restartSessionTrigger, setRestartSessionTrigger] = useState(0);
     const [systemInstruction, setSystemInstruction] = useState<string>('You are TermVoice, a helpful and informative terminal-based AI assistant. Respond concisely, prioritizing accuracy and clarity. Avoid conversational filler.');
+    const [selectedVoice, setSelectedVoice] = useState<string>('Leda');
 
     const sessionPromiseRef = useRef<Promise<LiveSession> | null>(null);
     const inputAudioContextRef = useRef<AudioContext | null>(null);
@@ -226,7 +227,7 @@ const App: React.FC = () => {
                 outputAudioTranscription: {},
                 speechConfig: {
                     voiceConfig: {
-                        prebuiltVoiceConfig: { voiceName: 'Leda' },
+                        prebuiltVoiceConfig: { voiceName: selectedVoice },
                     },
                 },
                 systemInstruction: systemInstruction
@@ -342,6 +343,10 @@ const App: React.FC = () => {
         setSystemInstruction(newInstruction);
     };
 
+    const handleVoiceChange = (newVoice: string) => {
+        setSelectedVoice(newVoice);
+    };
+
 
     return (
         <div className="flex flex-col h-screen max-h-screen bg-black font-mono p-2 sm:p-4">
@@ -355,6 +360,8 @@ const App: React.FC = () => {
                 onGainChange={handleGainChange}
                 systemInstruction={systemInstruction}
                 onSystemInstructionChange={handleSystemInstructionChange}
+                selectedVoice={selectedVoice}
+                onVoiceChange={handleVoiceChange}
             />
             <header className="flex-shrink-0 border-b-2 border-green-700 pb-2 mb-2 flex justify-between items-center">
                 <h1 className="text-xl sm:text-2xl font-bold text-green-400">TermVoice Web</h1>

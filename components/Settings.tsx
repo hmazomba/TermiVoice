@@ -2,6 +2,8 @@
 import React from 'react';
 import { CloseIcon } from './Icons';
 
+const VOICES = ['Leda', 'Puck', 'Charon', 'Kore', 'Fenrir', 'Zephyr'];
+
 interface SettingsProps {
   isOpen: boolean;
   onClose: () => void;
@@ -12,6 +14,8 @@ interface SettingsProps {
   onGainChange: (gain: number) => void;
   systemInstruction: string;
   onSystemInstructionChange: (instruction: string) => void;
+  selectedVoice: string;
+  onVoiceChange: (voice: string) => void;
 }
 
 const Settings: React.FC<SettingsProps> = ({
@@ -24,6 +28,8 @@ const Settings: React.FC<SettingsProps> = ({
   onGainChange,
   systemInstruction,
   onSystemInstructionChange,
+  selectedVoice,
+  onVoiceChange,
 }) => {
   if (!isOpen) return null;
 
@@ -81,6 +87,28 @@ const Settings: React.FC<SettingsProps> = ({
                 {micGain.toFixed(1)}
               </span>
             </div>
+          </div>
+
+          <div>
+            <label htmlFor="voice-select" className="block mb-2 text-lg">
+              Assistant Voice
+            </label>
+            <select
+              id="voice-select"
+              value={selectedVoice}
+              onChange={(e) => onVoiceChange(e.target.value)}
+              className="w-full bg-gray-900 border border-green-700 p-2 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+              aria-label="Select assistant voice"
+            >
+              {VOICES.map((voice) => (
+                <option key={voice} value={voice}>
+                  {voice}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs mt-1 text-gray-500">
+              Changes will be applied the next time you start a session.
+            </p>
           </div>
 
           <div>
