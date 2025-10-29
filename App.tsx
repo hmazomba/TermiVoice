@@ -5,7 +5,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { GoogleGenAI, LiveServerMessage, Modality } from '@google/genai';
 import { type TranscriptEntry, type Blob, type LiveSession } from './types';
 import { encode, decode, decodeAudioData, createBlob } from './utils/audio';
-import { MicrophoneIcon, StopIcon, DownloadIcon, SettingsIcon } from './components/Icons';
+import { MicrophoneIcon, StopIcon, DownloadIcon, SettingsIcon, UploadIcon } from './components/Icons';
 import Settings from './components/Settings';
 import AudioVisualizer from './components/AudioVisualizer';
 
@@ -14,6 +14,7 @@ const App: React.FC = () => {
     const [statusMessage, setStatusMessage] = useState<string>('IDLE :: Press START to begin');
     const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
     const [isGroundingEnabled, setIsGroundingEnabled] = useState<boolean>(false);
+    const [uploadedFiles, setUploadedFiles] = useState<{ name: string, content: string }[]>([]);
 
     // Settings State
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -32,6 +33,7 @@ const App: React.FC = () => {
     const mediaStreamSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
     const gainNodeRef = useRef<GainNode | null>(null);
     const analyserNodeRef = useRef<AnalyserNode | null>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const currentInputTranscriptionRef = useRef<string>('');
     const currentOutputTranscriptionRef = useRef<string>('');
@@ -221,6 +223,14 @@ const App: React.FC = () => {
 
             setStatusMessage('CONNECTING :: Establishing connection to Gemini...');
 
+            let finalSystemInstruction = systemInstruction;
+            if (uploadedFiles.length > 0) {
+                const filesContext = uploadedFiles.map(file => 
+                    `[START DOCUMENT CONTEXT: ${file.name}]\n${file.content}\n[END DOCUMENT CONTEXT: ${file.name}]`
+                ).join('\n\n');
+                finalSystemInstruction = `${filesContext}\n\n${systemInstruction}`;
+            }
+
             const sessionConfig: any = {
                 responseModalities: [Modality.AUDIO],
                 inputAudioTranscription: {},
@@ -230,7 +240,7 @@ const App: React.FC = () => {
                         prebuiltVoiceConfig: { voiceName: selectedVoice },
                     },
                 },
-                systemInstruction: systemInstruction
+                systemInstruction: finalSystemInstruction
             };
         
             if (isGroundingEnabled) {
@@ -347,9 +357,48 @@ const App: React.FC = () => {
         setSelectedVoice(newVoice);
     };
 
+    const handleUploadClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileRemove = (fileName: string) => {
+        setUploadedFiles(prev => prev.filter(f => f.name !== fileName));
+    };
+
+    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const files = event.target.files;
+        if (!files) return;
+
+        for (let i = 0; i < files.length; i++) {
+            const file = files[i];
+            if (uploadedFiles.some(f => f.name === file.name)) {
+                setStatusMessage(`WARNING :: Document '${file.name}' is already loaded.`);
+                continue;
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const content = e.target?.result as string;
+                setUploadedFiles(prev => [...prev, { name: file.name, content }]);
+            };
+            reader.onerror = () => {
+                 setStatusMessage(`ERROR :: Could not read file '${file.name}'.`);
+            }
+            reader.readAsText(file);
+        }
+        event.target.value = '';
+    };
 
     return (
         <div className="flex flex-col h-screen max-h-screen bg-black font-mono p-2 sm:p-4">
+            <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileUpload}
+                className="hidden" 
+                accept=".txt,.md,.json,.csv,.html,.js,.py"
+                multiple 
+            />
             <Settings 
                 isOpen={isSettingsOpen}
                 onClose={() => setIsSettingsOpen(false)}
@@ -373,6 +422,29 @@ const App: React.FC = () => {
                 </div>
             </header>
             
+            {uploadedFiles.length > 0 && (
+                <div className="flex-shrink-0 border-2 border-dashed border-gray-600 rounded-md mb-2 p-2">
+                    <h3 className="text-gray-400 font-bold mb-2">[CONTEXT_DOCUMENTS]</h3>
+                    <div className="flex flex-wrap gap-2">
+                        {uploadedFiles.map(file => (
+                            <div key={file.name} className="bg-gray-800 text-sm px-2 py-1 rounded-md flex items-center gap-2">
+                                <span>{file.name}</span>
+                                <button
+                                    onClick={() => handleFileRemove(file.name)}
+                                    className="bg-black border border-red-500 text-red-400 rounded w-5 h-5 flex items-center justify-center hover:bg-red-900 hover:text-white font-bold transition-colors"
+                                    aria-label={`Remove ${file.name}`}
+                                >
+                                    &times;
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                     <p className="text-xs mt-2 text-gray-500">
+                        Context from these documents will be applied the next time you start a session.
+                    </p>
+                </div>
+            )}
+
             <main className="flex-grow overflow-y-auto p-2 border-2 border-green-700 rounded-md mb-2 bg-black">
                 <div className="flex flex-col">
                     {transcript.map((entry, index) => (
@@ -416,15 +488,23 @@ const App: React.FC = () => {
                    <span className="flex-1">{statusMessage}</span>
                 </div>
                 <div className="flex items-center justify-center gap-4">
-                    <button 
+                    <button
                         onClick={handleToggleSession}
-                        className={`px-6 py-3 rounded-md text-lg font-bold flex items-center gap-2 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black
-                            ${isSessionActive 
-                                ? 'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500' 
-                                : 'bg-green-600 hover:bg-green-700 text-white focus:ring-green-500'}`}
+                        className={`px-6 py-3 rounded-md text-lg font-bold flex items-center gap-2 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black bg-black border-2 hover:bg-gray-800
+                            ${isSessionActive
+                                ? 'border-red-500 text-red-400 focus:ring-red-500'
+                                : 'border-green-500 text-green-400 focus:ring-green-500'}`}
                     >
                         {isSessionActive ? <StopIcon /> : <MicrophoneIcon />}
                         {isSessionActive ? 'STOP' : 'START'}
+                    </button>
+                    <button
+                        onClick={handleUploadClick}
+                        disabled={isSessionActive}
+                        className="px-6 py-3 bg-black border-2 border-green-500 text-green-400 hover:bg-gray-800 rounded-md text-lg font-bold flex items-center gap-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black focus:ring-green-500"
+                    >
+                       <UploadIcon />
+                       CONTEXT
                     </button>
                      <div className="flex items-center space-x-2">
                         <label
@@ -455,7 +535,7 @@ const App: React.FC = () => {
                     <button
                         onClick={handleExport}
                         disabled={transcript.length === 0}
-                        className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-lg font-bold flex items-center gap-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black focus:ring-blue-500"
+                        className="px-6 py-3 bg-black border-2 border-green-500 text-green-400 hover:bg-gray-800 rounded-md text-lg font-bold flex items-center gap-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-black focus:ring-green-500"
                     >
                        <DownloadIcon />
                        EXPORT
